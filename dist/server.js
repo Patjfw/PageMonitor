@@ -153,7 +153,7 @@ app.get('/capture', function (req, res) {
 
             case 12:
               _context.next = 14;
-              return page.goto(req.query.url, { waitUntil: 'networkidle', networkIdleTimeout: 5000 });
+              return page.goto(req.query.url, { waitUntil: 'networkidle', networkIdleTimeout: 1000 });
 
             case 14:
               _context.next = 16;
