@@ -2,6 +2,7 @@ const axios = require('axios');
 const url = document.querySelector("#url");
 const token = document.querySelector("#token");
 const capture = document.querySelector("#capture");
+const container = document.querySelector("#container");
 
 let lock = false;
 capture.addEventListener('click', function(){
@@ -16,15 +17,27 @@ capture.addEventListener('click', function(){
     }).then(function(res){
       lock = false;
       if(res.data.urls){
-        let container = document.createElement('div');
+        let blank = /$(blank)w+/g
+        container.innerHTML = "";
+        let frag = document.createDocumentFragment();
         for(let i = 0; i<res.data.urls.length; i++){
+          let inner = document.createElement('div');
+          inner.className = "inner";
+          let p = document.createElement('p');
           let img = document.createElement('img');
           img.src = res.data.urls[i];
-          img.width = 80;
-          img.height = 45;
-          container.appendChild(img);
+          if(res.data.urls[i].search('blank') > -1){
+            img.className = "blank";
+          }
+          img.width = 192;
+          img.height = 108;
+          // console.log(res.data.urls[i].split("/").slice(-1)[0].slice(0, -4));
+          inner.appendChild(p);
+          inner.appendChild(img);
+          p.innerHTML = (parseInt(res.data.urls[i].split("/").slice(-1)[0].slice(0, -4).replace(/(blank_)/i, ''))/1000) + "ms"
+          frag.appendChild(inner);
         }
-        document.body.appendChild(container);
+        container.appendChild(frag);
       }
     });
   }

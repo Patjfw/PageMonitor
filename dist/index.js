@@ -191,6 +191,7 @@ var axios = require('axios');
 var url = document.querySelector("#url");
 var token = document.querySelector("#token");
 var capture = document.querySelector("#capture");
+var container = document.querySelector("#container");
 
 var lock = false;
 capture.addEventListener('click', function () {
@@ -205,15 +206,27 @@ capture.addEventListener('click', function () {
     }).then(function (res) {
       lock = false;
       if (res.data.urls) {
-        var container = document.createElement('div');
+        var blank = /$(blank)w+/g;
+        container.innerHTML = "";
+        var frag = document.createDocumentFragment();
         for (var i = 0; i < res.data.urls.length; i++) {
+          var inner = document.createElement('div');
+          inner.className = "inner";
+          var p = document.createElement('p');
           var img = document.createElement('img');
           img.src = res.data.urls[i];
-          img.width = 80;
-          img.height = 45;
-          container.appendChild(img);
+          if (res.data.urls[i].search('blank') > -1) {
+            img.className = "blank";
+          }
+          img.width = 192;
+          img.height = 108;
+          // console.log(res.data.urls[i].split("/").slice(-1)[0].slice(0, -4));
+          inner.appendChild(p);
+          inner.appendChild(img);
+          p.innerHTML = parseInt(res.data.urls[i].split("/").slice(-1)[0].slice(0, -4).replace(/(blank_)/i, '')) / 1000 + "ms";
+          frag.appendChild(inner);
         }
-        document.body.appendChild(container);
+        container.appendChild(frag);
       }
     });
   }

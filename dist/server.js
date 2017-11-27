@@ -16,18 +16,35 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 
 var express = require('express');
 var path = require('path');
+var fs = require("fs");
+var record;
+
+var blank = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAF8AqMDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAj/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AKpAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB//9k=';
 
 var port = process.argv[2] || 3000;
 var app = express();
 
 var server = app.listen(port, function () {});
 
-var fetchTracingData = function fetchTracingData(res) {
-  var record = require('../trace.json');
-  var fs = require("fs");
+var clearTrace = function clearTrace() {
+  fs.access("../PageMonitor/trace.json", function (err) {
+    // handle result
+    if (!err) {
+      console.log("old trace exists");
+      fs.unlink("../PageMonitor/trace.json", function (err) {
+        if (err) throw err;
+      });
+    } else {
+      console.log("no such file");
+    }
+  });
+  return 1;
+};
+
+var clearCache = function clearCache() {
   var path = require('path');
 
-  var directory = 'dist/snapshots';
+  var directory = './dist/snapshots';
 
   fs.readdir(directory, function (err, files) {
     if (err) throw err;
@@ -59,20 +76,40 @@ var fetchTracingData = function fetchTracingData(res) {
       }
     }
   });
+  return 1;
+};
 
-  var start = record["traceEvents"][0];
-  var snapshots = record["traceEvents"].filter(function (item) {
-    return item.cat === "disabled-by-default-devtools.screenshot";
+var fetchTracingData = function fetchTracingData(res) {
+  fs.readFile('../PageMonitor/trace.json', 'utf8', function (err, data) {
+    if (err) {
+      console.log('fetch error');
+    } else {
+      record = JSON.parse(data);
+      var start = record["traceEvents"][0];
+      var snapshots = record["traceEvents"].filter(function (item) {
+        return item.cat === "disabled-by-default-devtools.screenshot";
+      });
+
+      var imagesURL = [];
+      var blankPage = true;
+
+      for (var i = 0; i < snapshots.length; i++) {
+
+        if (blankPage && snapshots[i]["args"]["snapshot"] !== blank) {
+          imagesURL.push("../snapshots/blank_" + (snapshots[i]["ts"] - start["ts"]) + ".png");
+          fs.writeFile('./dist/snapshots/blank_' + (snapshots[i]["ts"] - start["ts"]) + ".png", snapshots[i]["args"]["snapshot"], 'base64', function (err) {});
+          blankPage = false;
+        } else {
+          imagesURL.push("../snapshots/" + (snapshots[i]["ts"] - start["ts"]) + ".png");
+          fs.writeFile('./dist/snapshots/' + (snapshots[i]["ts"] - start["ts"]) + ".png", snapshots[i]["args"]["snapshot"], 'base64', function (err) {});
+        }
+      }
+      console.log('fetch done!');
+      setTimeout(function () {
+        res.json({ urls: imagesURL });
+      }, 3000);
+    }
   });
-
-  var imagesURL = [];
-
-  for (var i = 0; i < snapshots.length; i++) {
-    imagesURL.push("../snapshots/" + (snapshots[i]["ts"] - start["ts"]) + ".png");
-    fs.writeFile("./" + directory + "/" + (snapshots[i]["ts"] - start["ts"]) + ".png", snapshots[i]["args"]["snapshot"], 'base64', function (err) {});
-  }
-  console.log('fetch done!');
-  res.json({ urls: imagesURL });
 };
 
 app.use(express.static('dist'));
@@ -94,39 +131,47 @@ app.get('/capture', function (req, res) {
           switch (_context.prev = _context.next) {
             case 0:
               _context.next = 2;
-              return puppeteer.launch();
+              return clearTrace();
 
             case 2:
+              _context.next = 4;
+              return puppeteer.launch();
+
+            case 4:
               browser = _context.sent;
-              _context.next = 5;
+              _context.next = 7;
               return browser.newPage();
 
-            case 5:
+            case 7:
               page = _context.sent;
-              _context.next = 8;
-              return page.setViewport({ width: 1920, height: 1080 });
-
-            case 8:
               _context.next = 10;
-              return page.tracing.start({ path: 'trace.json', screenshots: true });
+              return page.setViewport({ width: 1920, height: 1080 });
 
             case 10:
               _context.next = 12;
-              return page.goto(req.query.url, { waitUntil: 'networkidle', networkIdleTimeout: 5000 });
+              return page.tracing.start({ path: 'trace.json', screenshots: true });
 
             case 12:
               _context.next = 14;
-              return page.tracing.stop();
+              return page.goto(req.query.url, { waitUntil: 'networkidle', networkIdleTimeout: 5000 });
 
             case 14:
               _context.next = 16;
-              return browser.close();
+              return page.tracing.stop();
 
             case 16:
               _context.next = 18;
-              return fetchTracingData(res);
+              return browser.close();
 
             case 18:
+              _context.next = 20;
+              return clearCache();
+
+            case 20:
+              _context.next = 22;
+              return fetchTracingData(res);
+
+            case 22:
             case 'end':
               return _context.stop();
           }
